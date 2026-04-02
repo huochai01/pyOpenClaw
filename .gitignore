@@ -1,0 +1,19 @@
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Frontend dependencies / build output
+frontend/node_modules/
+frontend/.next/
+
+# Python cache
+**/__pycache__/
+*.pyc
+
+# Local environment files
+backend/.env
+
+# Runtime data
+backend/sessions/
+backend/storage/

@@ -1,0 +1,12 @@
+<available_skills>
+  <skill>
+    <name>get_weather</name>
+    <description>获取指定城市的实时天气信息</description>
+    <location>./skills/get_weather/SKILL.md</location>
+  </skill>
+  <skill>
+    <name>web_search</name>
+    <description>使用百度搜索实时信息，回答需要联网查询的问题</description>
+    <location>./skills/web_search/SKILL.md</location>
+  </skill>
+</available_skills>
