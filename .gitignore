@@ -17,5 +17,3 @@ backend/.env
 # Runtime data
 backend/sessions/
 backend/storage/
-
-FINAL.md

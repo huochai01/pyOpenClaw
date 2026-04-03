@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import platform
 import subprocess
 from pathlib import Path
 from typing import ClassVar
@@ -37,10 +38,15 @@ class TerminalTool(BaseTool):
         if any(token in lowered for token in self.blacklist):
             return "Command blocked by terminal sandbox."
 
+        shell_command = (
+            ["powershell", "-NoProfile", "-Command", command]
+            if platform.system().lower().startswith("win")
+            else ["bash", "-lc", command]
+        )
+
         completed = subprocess.run(
-            command,
+            shell_command,
             cwd=self.root_dir,
-            shell=True,
             capture_output=True,
             text=True,
             timeout=self.timeout_seconds,

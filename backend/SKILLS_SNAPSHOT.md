@@ -6,7 +6,7 @@
   </skill>
   <skill>
     <name>web_search</name>
-    <description>使用百度搜索实时信息，回答需要联网查询的问题</description>
+    <description>使用 Tavily 联网搜索最新网页信息、新闻、资料和事实。用户提到“搜索”“联网查一下”“帮我查最新”“看看网上怎么说”或需要实时网页结果时使用。</description>
     <location>./skills/web_search/SKILL.md</location>
   </skill>
 </available_skills>
