@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from events import SessionEventBroker
 from graph.agent import AgentManager
 from graph.prompt_builder import build_system_prompt
 
@@ -11,7 +15,7 @@ class RenameRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=50)
 
 
-def build_router(agent_manager: AgentManager) -> APIRouter:
+def build_router(agent_manager: AgentManager, event_broker: SessionEventBroker | None = None) -> APIRouter:
     router = APIRouter()
 
     @router.get("/sessions")
@@ -43,6 +47,40 @@ def build_router(agent_manager: AgentManager) -> APIRouter:
     @router.get("/sessions/{session_id}/history")
     async def get_history(session_id: str):
         return agent_manager.session_manager.load_session_file(session_id)
+
+    if event_broker is not None:
+        @router.get("/sessions/{session_id}/events")
+        async def stream_session_events(session_id: str):
+            async def event_generator():
+                async def heartbeat():
+                    while True:
+                        await asyncio.sleep(15)
+                        yield ": heartbeat\n\n"
+
+                event_stream = event_broker.subscribe(session_id)
+                heartbeat_stream = heartbeat()
+                next_event = asyncio.create_task(event_stream.__anext__())
+                next_heartbeat = asyncio.create_task(heartbeat_stream.__anext__())
+                try:
+                    while True:
+                        done, _ = await asyncio.wait(
+                            {next_event, next_heartbeat},
+                            return_when=asyncio.FIRST_COMPLETED,
+                        )
+                        if next_event in done:
+                            try:
+                                yield next_event.result()
+                            except StopAsyncIteration:
+                                break
+                            next_event = asyncio.create_task(event_stream.__anext__())
+                        if next_heartbeat in done:
+                            yield next_heartbeat.result()
+                            next_heartbeat = asyncio.create_task(heartbeat_stream.__anext__())
+                finally:
+                    next_event.cancel()
+                    next_heartbeat.cancel()
+
+            return StreamingResponse(event_generator(), media_type="text/event-stream")
 
     @router.post("/sessions/{session_id}/generate-title")
     async def generate_title(session_id: str):

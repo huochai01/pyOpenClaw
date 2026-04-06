@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api import chat, compress, config_api, files, sessions, tokens
+from events import SessionEventBroker
 from graph.agent import AgentManager
 from scheduler import ScheduledTaskRunner
 from tools.skills_scanner import scan_skills
@@ -16,9 +17,10 @@ from tools.skills_scanner import scan_skills
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 agent_manager = AgentManager()
+event_broker = SessionEventBroker()
 scan_skills(BASE_DIR)
 agent_manager.initialize(BASE_DIR)
-task_runner = ScheduledTaskRunner(agent_manager, agent_manager.task_store)
+task_runner = ScheduledTaskRunner(agent_manager, agent_manager.task_store, event_broker)
 
 
 @asynccontextmanager
@@ -39,7 +41,7 @@ app.add_middleware(
 )
 
 app.include_router(chat.build_router(agent_manager), prefix="/api")
-app.include_router(sessions.build_router(agent_manager), prefix="/api")
+app.include_router(sessions.build_router(agent_manager, event_broker), prefix="/api")
 app.include_router(files.build_router(BASE_DIR, agent_manager.memory_indexer), prefix="/api")
 app.include_router(tokens.build_router(BASE_DIR, agent_manager.session_manager, agent_manager.config_store), prefix="/api")
 app.include_router(compress.build_router(agent_manager), prefix="/api")

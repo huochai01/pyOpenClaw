@@ -19,13 +19,8 @@ def get_all_tools(base_dir: Path, *, task_store=None, session_id: str | None = N
         ReadFileTool(root_dir=base_dir),
         WriteFileTool(root_dir=base_dir),
         SearchKnowledgeBaseTool(root_dir=base_dir),
+        ScheduleTaskTool(root_dir=base_dir, task_store=task_store, session_id=session_id or ""),
+        ListScheduledTasksTool(task_store=task_store, session_id=session_id or ""),
+        CancelScheduledTaskTool(task_store=task_store, session_id=session_id or ""),
     ]
-    if task_store is not None and session_id:
-        tools.extend(
-            [
-                ScheduleTaskTool(root_dir=base_dir, task_store=task_store, session_id=session_id),
-                ListScheduledTasksTool(task_store=task_store, session_id=session_id),
-                CancelScheduledTaskTool(task_store=task_store, session_id=session_id),
-            ]
-        )
     return tools

@@ -26,4 +26,8 @@ def read_text_file(path: Path, *, errors: str = "strict") -> str:
 
 def write_text_file(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    path.write_text(normalize_text_content(content), encoding="utf-8")
+
+
+def normalize_text_content(content: str) -> str:
+    return content.replace("\r\n", "\n").replace("\r", "\n")

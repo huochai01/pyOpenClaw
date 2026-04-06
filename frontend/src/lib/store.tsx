@@ -10,9 +10,11 @@ import {
   getSessionTokens,
   listSessions,
   listSkills,
+  openSessionEvents,
   saveFile,
   setRagMode,
   streamChat,
+  type ScheduledSessionEvent,
   type SessionSummary,
   type SseEvent
 } from "@/lib/api";
@@ -74,6 +76,7 @@ type StoreValue = {
 };
 
 const StoreContext = createContext<StoreValue | null>(null);
+const scheduledRunMessageIds = new Map<string, { userId: string; assistantId: string }>();
 
 function makeId() {
   return Math.random().toString(36).slice(2);
@@ -120,6 +123,14 @@ function updateLastAssistantMessage(
     return items;
   }
   return [...items.slice(0, -1), updater(last)];
+}
+
+function updateMessageById(
+  items: ChatMessage[],
+  id: string,
+  updater: (message: ChatMessage) => ChatMessage
+): ChatMessage[] {
+  return items.map((message) => (message.id === id ? updater(message) : message));
 }
 
 export function AppProvider({ children }: PropsWithChildren) {
@@ -342,6 +353,103 @@ export function AppProvider({ children }: PropsWithChildren) {
     [currentSessionId, refreshSessions]
   );
 
+  const handleScheduledEvent = useCallback(
+    (event: ScheduledSessionEvent) => {
+      if (event.type === "scheduled_start") {
+        const userId = makeId();
+        const assistantId = makeId();
+        scheduledRunMessageIds.set(event.data.run_id, { userId, assistantId });
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: userId,
+            role: "user",
+            content: event.data.user_content,
+            toolCalls: [],
+            retrievals: []
+          },
+          {
+            id: assistantId,
+            role: "assistant",
+            content: "",
+            toolCalls: [],
+            retrievals: []
+          }
+        ]);
+        void refreshSessions();
+        return;
+      }
+
+      const ids = scheduledRunMessageIds.get(event.data.run_id);
+      if (!ids) {
+        return;
+      }
+
+      if (event.type === "scheduled_token") {
+        setMessages((prev) =>
+          updateMessageById(prev, ids.assistantId, (message) => ({
+            ...message,
+            content: message.content + event.data.content
+          }))
+        );
+        return;
+      }
+
+      if (event.type === "scheduled_tool_start") {
+        setMessages((prev) =>
+          updateMessageById(prev, ids.assistantId, (message) => ({
+            ...message,
+            toolCalls: [...message.toolCalls, { tool: event.data.tool, input: event.data.input }]
+          }))
+        );
+        return;
+      }
+
+      if (event.type === "scheduled_tool_end") {
+        setMessages((prev) =>
+          updateMessageById(prev, ids.assistantId, (message) => {
+            if (!message.toolCalls.length) {
+              return message;
+            }
+            const nextToolCalls = [...message.toolCalls];
+            nextToolCalls[nextToolCalls.length - 1] = {
+              ...nextToolCalls[nextToolCalls.length - 1],
+              output: event.data.output
+            };
+            return { ...message, toolCalls: nextToolCalls };
+          })
+        );
+        return;
+      }
+
+      if (event.type === "scheduled_done") {
+        setMessages((prev) =>
+          updateMessageById(prev, ids.assistantId, (message) => ({
+            ...message,
+            content: event.data.content || message.content
+          }))
+        );
+        void refreshSessions();
+        if (currentSessionId) {
+          void getSessionTokens(currentSessionId).then(setTokenStats).catch(() => undefined);
+        }
+        scheduledRunMessageIds.delete(event.data.run_id);
+        return;
+      }
+
+      if (event.type === "scheduled_error") {
+        setMessages((prev) =>
+          updateMessageById(prev, ids.assistantId, (message) => ({
+            ...message,
+            content: event.data.content || `发生错误: ${event.data.error}`
+          }))
+        );
+        scheduledRunMessageIds.delete(event.data.run_id);
+      }
+    },
+    [currentSessionId, refreshSessions]
+  );
+
   useEffect(() => {
     void refreshSessions();
     void refreshMeta();
@@ -355,17 +463,15 @@ export function AppProvider({ children }: PropsWithChildren) {
   }, [currentSessionId, loadSession]);
 
   useEffect(() => {
-    if (!currentSessionId || isStreaming) {
+    if (!currentSessionId) {
       return;
     }
-
-    const timer = window.setInterval(() => {
-      void syncSessionSilently(currentSessionId);
-      void refreshSessions();
-    }, 1000);
-
-    return () => window.clearInterval(timer);
-  }, [currentSessionId, isStreaming, refreshSessions, syncSessionSilently]);
+    const source = openSessionEvents(currentSessionId, handleScheduledEvent);
+    return () => {
+      source.close();
+      scheduledRunMessageIds.clear();
+    };
+  }, [currentSessionId, handleScheduledEvent]);
 
   const value = useMemo<StoreValue>(
     () => ({

@@ -27,6 +27,14 @@ export type SseEvent =
   | { type: "title"; data: { session_id: string; title: string } }
   | { type: "error"; data: { error: string } };
 
+export type ScheduledSessionEvent =
+  | { type: "scheduled_start"; data: { run_id: string; user_content: string } }
+  | { type: "scheduled_token"; data: { run_id: string; content: string } }
+  | { type: "scheduled_tool_start"; data: { run_id: string; tool: string; input: unknown } }
+  | { type: "scheduled_tool_end"; data: { run_id: string; tool: string; output: unknown } }
+  | { type: "scheduled_done"; data: { run_id: string; content: string } }
+  | { type: "scheduled_error"; data: { run_id: string; error: string; content?: string } };
+
 function getApiBase() {
   if (typeof window === "undefined") {
     return "http://127.0.0.1:8002/api";
@@ -153,4 +161,28 @@ export async function streamChat(
       onEvent({ type, data } as SseEvent);
     }
   }
+}
+
+export function openSessionEvents(
+  sessionId: string,
+  onEvent: (event: ScheduledSessionEvent) => void
+) {
+  const source = new EventSource(`${getApiBase()}/sessions/${sessionId}/events`);
+  const eventTypes: ScheduledSessionEvent["type"][] = [
+    "scheduled_start",
+    "scheduled_token",
+    "scheduled_tool_start",
+    "scheduled_tool_end",
+    "scheduled_done",
+    "scheduled_error"
+  ];
+
+  for (const type of eventTypes) {
+    source.addEventListener(type, (rawEvent) => {
+      const messageEvent = rawEvent as MessageEvent<string>;
+      onEvent({ type, data: JSON.parse(messageEvent.data) } as ScheduledSessionEvent);
+    });
+  }
+
+  return source;
 }

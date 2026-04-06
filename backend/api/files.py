@@ -6,7 +6,8 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from graph.memory_indexer import MemoryIndexer
-from utils.text_files import read_text_file, write_text_file
+from tools.skills_scanner import scan_skills
+from utils.text_files import normalize_text_content, read_text_file, write_text_file
 
 
 ALLOWED_PREFIXES = ("workspace/", "memory/", "skills/", "knowledge/")
@@ -29,9 +30,11 @@ def build_router(base_dir: Path, memory_indexer: MemoryIndexer) -> APIRouter:
     @router.post("/files")
     async def save_file(request: SaveFileRequest):
         file_path = _validate_path(base_dir, request.path)
-        write_text_file(file_path, request.content)
+        write_text_file(file_path, normalize_text_content(request.content))
         if request.path == "memory/MEMORY.md":
             memory_indexer.rebuild_index()
+        if request.path.startswith("skills/") and request.path.endswith("/SKILL.md"):
+            scan_skills(base_dir)
         return {"ok": True, "path": request.path}
 
     @router.get("/skills")

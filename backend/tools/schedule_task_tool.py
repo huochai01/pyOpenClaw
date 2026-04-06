@@ -22,10 +22,12 @@ class ScheduleTaskTool(BaseTool):
     description: str = "创建每天固定时间执行的定时任务，并绑定到当前会话。"
     args_schema: ClassVar[type[BaseModel]] = ScheduleTaskInput
     root_dir: Path
-    task_store: ScheduledTaskStore
-    session_id: str
+    task_store: ScheduledTaskStore | None = None
+    session_id: str = ""
 
     def _run(self, title: str, prompt: str, time_of_day: str, timezone: str = "Asia/Shanghai") -> str:
+        if self.task_store is None or not self.session_id:
+            return json.dumps({"error": "No active session available for scheduling."}, ensure_ascii=False, indent=2)
         task = self.task_store.create_task(
             session_id=self.session_id,
             title=title,
@@ -47,10 +49,12 @@ class ListScheduledTasksTool(BaseTool):
     name: str = "list_scheduled_tasks"
     description: str = "列出当前会话的定时任务。"
     args_schema: ClassVar[type[BaseModel]] = ListScheduledTasksInput
-    task_store: ScheduledTaskStore
-    session_id: str
+    task_store: ScheduledTaskStore | None = None
+    session_id: str = ""
 
     def _run(self, include_inactive: bool = False) -> str:
+        if self.task_store is None or not self.session_id:
+            return json.dumps({"error": "No active session available for listing tasks."}, ensure_ascii=False, indent=2)
         items = []
         for item in self.task_store.list_tasks():
             if item.get("session_id") != self.session_id:
@@ -72,10 +76,12 @@ class CancelScheduledTaskTool(BaseTool):
     name: str = "cancel_scheduled_task"
     description: str = "取消一个已创建的定时任务。"
     args_schema: ClassVar[type[BaseModel]] = CancelScheduledTaskInput
-    task_store: ScheduledTaskStore
-    session_id: str
+    task_store: ScheduledTaskStore | None = None
+    session_id: str = ""
 
     def _run(self, task_id: str) -> str:
+        if self.task_store is None or not self.session_id:
+            return json.dumps({"error": "No active session available for canceling tasks."}, ensure_ascii=False, indent=2)
         task = self.task_store.cancel_task(task_id)
         if task is None or task.get("session_id") != self.session_id:
             return json.dumps({"error": "Task not found."}, ensure_ascii=False, indent=2)
