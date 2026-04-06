@@ -34,7 +34,7 @@ def build_router(agent_manager: AgentManager) -> APIRouter:
         async def event_generator():
             assistant_segments: list[dict[str, Any]] = []
             try:
-                async for event in agent_manager.astream(request.message, history):
+                async for event in agent_manager.astream(request.message, history, session_id=session_id):
                     if event["type"] == "done":
                         assistant_segments = event["data"].get("segments", [])
                         event["data"]["session_id"] = session_id

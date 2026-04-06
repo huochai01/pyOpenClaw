@@ -9,7 +9,7 @@ export function Navbar() {
         </div>
         <a
           className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
-          href="https://github.com/huochai01"
+          href="https://github.com/huochai01/pyOpenClaw"
           target="_blank"
           rel="noreferrer"
         >

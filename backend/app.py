@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api import chat, compress, config_api, files, sessions, tokens
 from graph.agent import AgentManager
+from scheduler import ScheduledTaskRunner
 from tools.skills_scanner import scan_skills
 
 
@@ -17,12 +18,15 @@ load_dotenv(BASE_DIR / ".env")
 agent_manager = AgentManager()
 scan_skills(BASE_DIR)
 agent_manager.initialize(BASE_DIR)
+task_runner = ScheduledTaskRunner(agent_manager, agent_manager.task_store)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     agent_manager.memory_indexer.rebuild_index()
+    await task_runner.start()
     yield
+    await task_runner.stop()
 
 
 app = FastAPI(title="Mini OpenClaw", lifespan=lifespan)

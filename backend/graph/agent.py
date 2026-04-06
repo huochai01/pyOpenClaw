@@ -7,13 +7,14 @@ from pathlib import Path
 from typing import Any, AsyncIterator
 
 from langchain.agents import create_agent
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_deepseek import ChatDeepSeek
 
 from config import ConfigStore
 from graph.memory_indexer import MemoryIndexer
 from graph.prompt_builder import build_system_prompt
 from graph.session_manager import SessionManager
+from scheduler import ScheduledTaskStore
 from tools import get_all_tools
 
 
@@ -25,6 +26,7 @@ class AgentManager:
         self.session_manager: SessionManager | None = None
         self.memory_indexer: MemoryIndexer | None = None
         self.config_store: ConfigStore | None = None
+        self.task_store: ScheduledTaskStore | None = None
 
     def initialize(self, base_dir: Path) -> None:
         self.base_dir = base_dir
@@ -35,19 +37,27 @@ class AgentManager:
             temperature=0.3,
             streaming=True,
         )
-        self.tools = get_all_tools(base_dir)
         self.session_manager = SessionManager(base_dir)
         self.memory_indexer = MemoryIndexer(base_dir)
         self.config_store = ConfigStore(base_dir)
+        self.task_store = ScheduledTaskStore(base_dir)
+        self.tools = get_all_tools(base_dir)
 
-    def _build_agent(self):
+    def _build_agent(self, session_id: str | None = None):
         if self.base_dir is None or self.config_store is None:
             raise RuntimeError("AgentManager is not initialized.")
 
         rag_mode = self.config_store.get_rag_mode()
         prompt = build_system_prompt(self.base_dir, rag_mode=rag_mode)
         signature = inspect.signature(create_agent)
-        kwargs = {"model": self.llm, "tools": self.tools}
+        kwargs = {
+            "model": self.llm,
+            "tools": get_all_tools(
+                self.base_dir,
+                task_store=self.task_store,
+                session_id=session_id,
+            ),
+        }
         if "system_prompt" in signature.parameters:
             kwargs["system_prompt"] = prompt
         elif "prompt" in signature.parameters:
@@ -87,7 +97,12 @@ class AgentManager:
         result = await self.llm.ainvoke(prompt)
         return str(getattr(result, "content", "")).strip()
 
-    async def astream(self, message: str, history: list[dict[str, Any]]) -> AsyncIterator[dict[str, Any]]:
+    async def astream(
+        self,
+        message: str,
+        history: list[dict[str, Any]],
+        session_id: str | None = None,
+    ) -> AsyncIterator[dict[str, Any]]:
         if self.config_store is None or self.memory_indexer is None:
             raise RuntimeError("AgentManager is not initialized.")
 
@@ -108,9 +123,8 @@ class AgentManager:
                     }
                 )
 
-        agent = self._build_agent()
+        agent = self._build_agent(session_id=session_id)
         messages = self._build_messages(working_history, message)
-        print(messages)
         current_segment = ""
         all_segments: list[dict[str, Any]] = []
         current_tool_calls: list[dict[str, Any]] = []
@@ -135,13 +149,16 @@ class AgentManager:
             elif event_name == "on_tool_start":
                 data = event.get("data", {})
                 tool_name = event.get("name") or data.get("name") or "tool"
-                yield {"type": "tool_start", "data": {"tool": tool_name, "input": data.get("input")}}
+                yield {
+                    "type": "tool_start",
+                    "data": {"tool": tool_name, "input": _to_jsonable(data.get("input"))},
+                }
             elif event_name == "on_tool_end":
                 data = event.get("data", {})
                 tool_name = event.get("name") or "tool"
-                tool_output = data.get("output")
+                tool_output = _to_jsonable(data.get("output"))
                 current_tool_calls.append(
-                    {"tool": tool_name, "input": data.get("input"), "output": tool_output}
+                    {"tool": tool_name, "input": _to_jsonable(data.get("input")), "output": tool_output}
                 )
                 pending_new_response = True
                 yield {"type": "tool_end", "data": {"tool": tool_name, "output": tool_output}}
@@ -151,6 +168,20 @@ class AgentManager:
 
         content = "\n\n".join(segment["content"] for segment in all_segments if segment["content"].strip())
         yield {"type": "done", "data": {"content": content, "segments": all_segments}}
+
+    async def arun(self, message: str, session_id: str) -> dict[str, Any]:
+        if self.session_manager is None:
+            raise RuntimeError("Session manager is not initialized.")
+        history = self.session_manager.load_session_for_agent(session_id)
+        segments: list[dict[str, Any]] = []
+        async for event in self.astream(message, history, session_id=session_id):
+            if event["type"] == "done":
+                segments = event["data"].get("segments", [])
+        content = "\n\n".join(item.get("content", "") for item in segments if item.get("content", "").strip())
+        tool_calls: list[dict[str, Any]] = []
+        for item in segments:
+            tool_calls.extend(item.get("tool_calls", []))
+        return {"content": content, "tool_calls": _to_jsonable(tool_calls)}
 
 
 def _extract_chunk_text(chunk: Any) -> str:
@@ -164,3 +195,30 @@ def _extract_chunk_text(chunk: Any) -> str:
     if isinstance(content, list):
         return "".join(part.get("text", "") for part in content if isinstance(part, dict))
     return str(chunk) if isinstance(chunk, str) else ""
+
+
+def _to_jsonable(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, BaseMessage):
+        return {
+            "type": value.__class__.__name__,
+            "content": _to_jsonable(getattr(value, "content", "")),
+            "name": getattr(value, "name", None),
+            "tool_call_id": getattr(value, "tool_call_id", None),
+        }
+    if hasattr(value, "model_dump"):
+        try:
+            return _to_jsonable(value.model_dump())
+        except Exception:
+            return str(value)
+    if isinstance(value, dict):
+        return {str(key): _to_jsonable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_to_jsonable(item) for item in value]
+    if hasattr(value, "__dict__"):
+        try:
+            return _to_jsonable(vars(value))
+        except Exception:
+            return str(value)
+    return str(value)

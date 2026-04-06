@@ -111,6 +111,41 @@ class SessionManager:
         self._write_session(session_id, session)
         return session
 
+    def append_message(
+        self,
+        session_id: str,
+        role: str,
+        content: str = "",
+        tool_calls: list[dict[str, Any]] | None = None,
+    ) -> int:
+        session = self._read_session(session_id)
+        messages = session.setdefault("messages", [])
+        messages.append({"role": role, "content": content, "tool_calls": tool_calls or []})
+        session["updated_at"] = time.time()
+        self._write_session(session_id, session)
+        return len(messages) - 1
+
+    def update_message(
+        self,
+        session_id: str,
+        message_index: int,
+        *,
+        content: str | None = None,
+        tool_calls: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        session = self._read_session(session_id)
+        messages = session.setdefault("messages", [])
+        if message_index < 0 or message_index >= len(messages):
+            raise IndexError("message_index out of range")
+        message = messages[message_index]
+        if content is not None:
+            message["content"] = content
+        if tool_calls is not None:
+            message["tool_calls"] = tool_calls
+        session["updated_at"] = time.time()
+        self._write_session(session_id, session)
+        return session
+
     def compress_history(self, session_id: str, summary: str, count: int) -> dict[str, Any]:
         session = self._read_session(session_id)
         messages = session.get("messages", [])

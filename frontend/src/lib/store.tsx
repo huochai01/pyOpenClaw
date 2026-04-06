@@ -79,6 +79,35 @@ function makeId() {
   return Math.random().toString(36).slice(2);
 }
 
+function mapSessionMessages(
+  session: Awaited<ReturnType<typeof getSessionHistory>>
+): ChatMessage[] {
+  return session.messages.map((message) => ({
+    id: makeId(),
+    role: message.role,
+    content: message.content,
+    toolCalls: message.tool_calls ?? [],
+    retrievals: []
+  }));
+}
+
+function areMessagesEqual(left: ChatMessage[], right: ChatMessage[]) {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((message, index) => {
+    const next = right[index];
+    if (!next) {
+      return false;
+    }
+    return (
+      message.role === next.role &&
+      message.content === next.content &&
+      JSON.stringify(message.toolCalls) === JSON.stringify(next.toolCalls)
+    );
+  });
+}
+
 function updateLastAssistantMessage(
   items: ChatMessage[],
   updater: (message: ChatMessage) => ChatMessage
@@ -126,18 +155,21 @@ export function AppProvider({ children }: PropsWithChildren) {
   const loadSession = useCallback(async (sessionId: string) => {
     const session = await getSessionHistory(sessionId);
     setCurrentSessionId(sessionId);
-    setMessages(
-      session.messages.map((message) => ({
-        id: makeId(),
-        role: message.role,
-        content: message.content,
-        toolCalls: message.tool_calls ?? [],
-        retrievals: []
-      }))
-    );
+    setMessages(mapSessionMessages(session));
     const stats = await getSessionTokens(sessionId);
     setTokenStats(stats);
   }, []);
+
+  const syncSessionSilently = useCallback(
+    async (sessionId: string) => {
+      const session = await getSessionHistory(sessionId);
+      const nextMessages = mapSessionMessages(session);
+      setMessages((prev) => (areMessagesEqual(prev, nextMessages) ? prev : nextMessages));
+      const stats = await getSessionTokens(sessionId);
+      setTokenStats(stats);
+    },
+    []
+  );
 
   const createNewSession = useCallback(async () => {
     const session = await createSession();
@@ -321,6 +353,19 @@ export function AppProvider({ children }: PropsWithChildren) {
       void loadSession(currentSessionId);
     }
   }, [currentSessionId, loadSession]);
+
+  useEffect(() => {
+    if (!currentSessionId || isStreaming) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      void syncSessionSilently(currentSessionId);
+      void refreshSessions();
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [currentSessionId, isStreaming, refreshSessions, syncSessionSilently]);
 
   const value = useMemo<StoreValue>(
     () => ({
