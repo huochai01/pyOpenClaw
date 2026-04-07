@@ -1,5 +1,10 @@
 <available_skills>
   <skill>
+    <name>ai-news-daily</name>
+    <description>获取当日最新 AI 领域资讯、前沿研究动态与行业新闻。当用户询问"今天 AI 有什么新动向"、"最新的 AI 新闻"、"AI 领域最近发生了什么"、"帮我整理今日 AI 资讯"、"大模型有什么新进展"、"AI 公司最新动态"等相关问题时，务必使用此 skill。即使用户只是随口提到想了解 AI 动态、科技前沿、大模型进展，也应积极触发此 skill。适用于晨报整理、行业研究、竞品追踪、学术跟进等多种场景。</description>
+    <location>./skills/ai-news-daily/SKILL.md</location>
+  </skill>
+  <skill>
     <name>get_weather</name>
     <description>获取指定城市的实时天气信息</description>
     <location>./skills/get_weather/SKILL.md</location>
