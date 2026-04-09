@@ -37,9 +37,9 @@ export type ScheduledSessionEvent =
 
 function getApiBase() {
   if (typeof window === "undefined") {
-    return "http://127.0.0.1:8002/api";
+    return "http://127.0.0.1:8010/api";
   }
-  return `http://${window.location.hostname}:8002/api`;
+  return `http://${window.location.hostname}:8010/api`;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

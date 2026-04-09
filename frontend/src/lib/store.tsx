@@ -211,7 +211,6 @@ export function AppProvider({ children }: PropsWithChildren) {
 
   const compressCurrentSession = useCallback(async () => {
     if (!currentSessionId) return;
-    if (!window.confirm("确定要压缩当前会话历史吗？此操作会归档前半段消息。")) return;
     await compressSession(currentSessionId);
     await loadSession(currentSessionId);
     await refreshSessions();
@@ -219,7 +218,6 @@ export function AppProvider({ children }: PropsWithChildren) {
 
   const deleteExistingSession = useCallback(
     async (sessionId: string) => {
-      if (!window.confirm("确定要删除这条历史会话吗？")) return;
       const remaining = sessions.filter((session) => session.id !== sessionId);
       await deleteSession(sessionId);
       if (currentSessionId === sessionId) {

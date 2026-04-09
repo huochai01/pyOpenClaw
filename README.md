@@ -198,7 +198,7 @@ TAVILY_API_KEY=your_key
 ```bash
 cd backend
 pip install -r requirements.txt
-uvicorn app:app --port 8002 --host 0.0.0.0 --reload
+uvicorn app:app --port 8010 --host 0.0.0.0 --reload
 ```
 
 ### 4. 启动前端
@@ -212,7 +212,7 @@ npm run dev
 默认地址：
 
 - Frontend: `http://localhost:3000`
-- Backend: `http://localhost:8002`
+- Backend: `http://localhost:8010`
 
 ## 使用方法
 
