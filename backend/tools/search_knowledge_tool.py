@@ -64,6 +64,9 @@ class SearchKnowledgeBaseTool(BaseTool):
     async def _arun(self, query: str) -> str:
         return self._run(query)
 
+    def rebuild_index(self) -> None:
+        self._rebuild()
+
     def search(self, query: str, top_k: int = 3) -> list[dict[str, Any]]:
         self._maybe_rebuild()
         if not self._chunks:
@@ -95,7 +98,8 @@ class SearchKnowledgeBaseTool(BaseTool):
         previous_hash = None
         if self.manifest_path.exists():
             previous_hash = json.loads(self.manifest_path.read_text(encoding="utf-8")).get("hash")
-        if current_hash != previous_hash:
+        needs_bootstrap = not self._chunks or self._bm25 is None
+        if current_hash != previous_hash or needs_bootstrap:
             self._rebuild()
 
     def _rebuild(self) -> None:

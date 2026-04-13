@@ -3,17 +3,20 @@
 import {
   compressSession,
   createSession,
+  deleteKnowledgeFile,
   deleteSession,
   getFile,
   getRagMode,
   getSessionHistory,
   getSessionTokens,
+  listKnowledgeFiles,
   listSessions,
   listSkills,
   openSessionEvents,
   saveFile,
   setRagMode,
   streamChat,
+  uploadKnowledgeFile,
   type ScheduledSessionEvent,
   type SessionSummary,
   type SseEvent
@@ -58,6 +61,7 @@ type StoreValue = {
   selectedFile: string;
   fileContent: string;
   skills: Array<{ name: string; path: string }>;
+  knowledgeFiles: Array<{ name: string; path: string }>;
   ragEnabled: boolean;
   tokenStats: { system_tokens: number; message_tokens: number; total_tokens: number } | null;
   isFileDirty: boolean;
@@ -69,6 +73,8 @@ type StoreValue = {
   selectFile: (path: string) => Promise<void>;
   setFileContent: (next: string) => void;
   persistFile: () => Promise<void>;
+  uploadKnowledge: (file: File) => Promise<string>;
+  removeKnowledge: (path: string) => Promise<void>;
   refreshSessions: () => Promise<void>;
   toggleRagMode: (enabled: boolean) => Promise<void>;
   compressCurrentSession: () => Promise<void>;
@@ -144,6 +150,7 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [fileContent, setFileContentState] = useState("");
   const [savedFileContent, setSavedFileContent] = useState("");
   const [skills, setSkills] = useState<Array<{ name: string; path: string }>>([]);
+  const [knowledgeFiles, setKnowledgeFiles] = useState<Array<{ name: string; path: string }>>([]);
   const [ragEnabled, setRagEnabled] = useState(false);
   const [tokenStats, setTokenStats] = useState<StoreValue["tokenStats"]>(null);
 
@@ -158,8 +165,9 @@ export function AppProvider({ children }: PropsWithChildren) {
   }, [currentSessionId]);
 
   const refreshMeta = useCallback(async () => {
-    const [skillsData, ragData] = await Promise.all([listSkills(), getRagMode()]);
+    const [skillsData, knowledgeData, ragData] = await Promise.all([listSkills(), listKnowledgeFiles(), getRagMode()]);
     setSkills(skillsData);
+    setKnowledgeFiles(knowledgeData);
     setRagEnabled(ragData.enabled);
   }, []);
 
@@ -202,7 +210,37 @@ export function AppProvider({ children }: PropsWithChildren) {
   const persistFile = useCallback(async () => {
     await saveFile(selectedFile, fileContent);
     setSavedFileContent(fileContent);
-  }, [fileContent, selectedFile]);
+    if (selectedFile.startsWith("knowledge/")) {
+      await refreshMeta();
+    }
+  }, [fileContent, refreshMeta, selectedFile]);
+
+  const uploadKnowledge = useCallback(
+    async (file: File) => {
+      const uploaded = await uploadKnowledgeFile(file);
+      await refreshMeta();
+      await selectFile(uploaded.path);
+      return uploaded.path;
+    },
+    [refreshMeta, selectFile]
+  );
+
+  const removeKnowledge = useCallback(
+    async (path: string) => {
+      await deleteKnowledgeFile(path);
+      await refreshMeta();
+
+      if (selectedFile !== path) {
+        return;
+      }
+
+      const nextKnowledgeFiles = await listKnowledgeFiles();
+      setKnowledgeFiles(nextKnowledgeFiles);
+      const fallbackPath = nextKnowledgeFiles[0]?.path ?? "memory/MEMORY.md";
+      await selectFile(fallbackPath);
+    },
+    [refreshMeta, selectFile, selectedFile]
+  );
 
   const toggleRagMode = useCallback(async (enabled: boolean) => {
     await setRagMode(enabled);
@@ -482,6 +520,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       selectedFile,
       fileContent,
       skills,
+      knowledgeFiles,
       ragEnabled,
       tokenStats,
       isFileDirty,
@@ -493,6 +532,8 @@ export function AppProvider({ children }: PropsWithChildren) {
       selectFile,
       setFileContent,
       persistFile,
+      uploadKnowledge,
+      removeKnowledge,
       refreshSessions,
       toggleRagMode,
       compressCurrentSession,
@@ -503,6 +544,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       currentSessionId,
       deleteExistingSession,
       fileContent,
+      knowledgeFiles,
       inspectorWidth,
       isFileDirty,
       isStreaming,
@@ -511,6 +553,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       persistFile,
       ragEnabled,
       refreshSessions,
+      removeKnowledge,
       selectedFile,
       selectFile,
       sendMessage,
@@ -519,6 +562,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       skills,
       tokenStats,
       toggleRagMode,
+      uploadKnowledge,
       compressCurrentSession,
       setFileContent
     ]

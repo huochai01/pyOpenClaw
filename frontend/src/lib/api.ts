@@ -35,6 +35,11 @@ export type ScheduledSessionEvent =
   | { type: "scheduled_done"; data: { run_id: string; content: string } }
   | { type: "scheduled_error"; data: { run_id: string; error: string; content?: string } };
 
+export type FileEntry = {
+  name: string;
+  path: string;
+};
+
 function getApiBase() {
   if (typeof window === "undefined") {
     return "http://127.0.0.1:8010/api";
@@ -43,12 +48,15 @@ function getApiBase() {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const isFormData = init?.body instanceof FormData;
   const response = await fetch(`${getApiBase()}${path}`, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {})
-    }
+    headers: isFormData
+      ? init?.headers
+      : {
+          "Content-Type": "application/json",
+          ...(init?.headers ?? {})
+        }
   });
 
   if (!response.ok) {
@@ -99,6 +107,25 @@ export async function saveFile(path: string, content: string) {
 
 export async function listSkills() {
   return request<Array<{ name: string; path: string }>>("/skills");
+}
+
+export async function listKnowledgeFiles() {
+  return request<FileEntry[]>("/knowledge/files");
+}
+
+export async function uploadKnowledgeFile(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return request<{ ok: boolean; path: string }>("/knowledge/upload", {
+    method: "POST",
+    body: formData
+  });
+}
+
+export async function deleteKnowledgeFile(path: string) {
+  return request<{ ok: boolean; path: string }>(`/knowledge/files?path=${encodeURIComponent(path)}`, {
+    method: "DELETE"
+  });
 }
 
 export async function getRagMode() {
