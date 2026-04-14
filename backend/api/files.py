@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 
+from config import ConfigStore
 from graph.memory_indexer import MemoryIndexer
 from tools.search_knowledge_tool import SearchKnowledgeBaseTool
 from tools.skills_scanner import scan_skills
@@ -21,7 +22,7 @@ class SaveFileRequest(BaseModel):
     content: str
 
 
-def build_router(base_dir: Path, memory_indexer: MemoryIndexer) -> APIRouter:
+def build_router(base_dir: Path, memory_indexer: MemoryIndexer, config_store: ConfigStore) -> APIRouter:
     router = APIRouter()
     knowledge_indexer = SearchKnowledgeBaseTool(root_dir=base_dir)
 
@@ -37,7 +38,7 @@ def build_router(base_dir: Path, memory_indexer: MemoryIndexer) -> APIRouter:
         if request.path == "memory/MEMORY.md":
             memory_indexer.rebuild_index()
         if request.path.startswith("skills/") and request.path.endswith("/SKILL.md"):
-            scan_skills(base_dir)
+            scan_skills(base_dir, disabled_skills=set(config_store.get_disabled_skills()))
         return {"ok": True, "path": request.path}
 
     @router.get("/skills")
@@ -48,6 +49,7 @@ def build_router(base_dir: Path, memory_indexer: MemoryIndexer) -> APIRouter:
                 {
                     "name": skill_path.parent.name,
                     "path": skill_path.relative_to(base_dir).as_posix(),
+                    "enabled": config_store.is_skill_enabled(skill_path.parent.name),
                 }
             )
         return skills

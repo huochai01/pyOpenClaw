@@ -15,7 +15,7 @@
     <location>./skills/scheduled_tasks/SKILL.md</location>
   </skill>
   <skill>
-    <name>失败经验总结</name>
+    <name>self-evolution</name>
     <description>当一个任务首次执行失败，但在重试其他工具、接口、参数或流程后成功时，使用此技能总结可复用经验，并将经验同时写入当前正在使用的 SKILL.md 与 memory/MEMORY.md。适用于 API 失败后切换备用 API、命令失败后改用其他命令、抓取失败后改用其他数据源、解析失败后改用其他流程等场景。</description>
     <location>./skills/self-evolution/SKILL.md</location>
   </skill>

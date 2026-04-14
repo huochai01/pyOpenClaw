@@ -106,7 +106,14 @@ export async function saveFile(path: string, content: string) {
 }
 
 export async function listSkills() {
-  return request<Array<{ name: string; path: string }>>("/skills");
+  return request<Array<{ name: string; path: string; enabled: boolean }>>("/skills");
+}
+
+export async function setSkillEnabled(name: string, enabled: boolean) {
+  return request<{ name: string; enabled: boolean }>(`/config/skills/${encodeURIComponent(name)}`, {
+    method: "PUT",
+    body: JSON.stringify({ enabled })
+  });
 }
 
 export async function listKnowledgeFiles() {

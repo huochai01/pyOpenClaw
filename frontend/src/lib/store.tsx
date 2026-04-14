@@ -14,6 +14,7 @@ import {
   listSkills,
   openSessionEvents,
   saveFile,
+  setSkillEnabled,
   setRagMode,
   streamChat,
   uploadKnowledgeFile,
@@ -60,7 +61,7 @@ type StoreValue = {
   inspectorWidth: number;
   selectedFile: string;
   fileContent: string;
-  skills: Array<{ name: string; path: string }>;
+  skills: Array<{ name: string; path: string; enabled: boolean }>;
   knowledgeFiles: Array<{ name: string; path: string }>;
   ragEnabled: boolean;
   tokenStats: { system_tokens: number; message_tokens: number; total_tokens: number } | null;
@@ -75,6 +76,7 @@ type StoreValue = {
   persistFile: () => Promise<void>;
   uploadKnowledge: (file: File) => Promise<string>;
   removeKnowledge: (path: string) => Promise<void>;
+  toggleSkill: (name: string, enabled: boolean) => Promise<void>;
   refreshSessions: () => Promise<void>;
   toggleRagMode: (enabled: boolean) => Promise<void>;
   compressCurrentSession: () => Promise<void>;
@@ -149,7 +151,7 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [selectedFile, setSelectedFile] = useState("memory/MEMORY.md");
   const [fileContent, setFileContentState] = useState("");
   const [savedFileContent, setSavedFileContent] = useState("");
-  const [skills, setSkills] = useState<Array<{ name: string; path: string }>>([]);
+  const [skills, setSkills] = useState<Array<{ name: string; path: string; enabled: boolean }>>([]);
   const [knowledgeFiles, setKnowledgeFiles] = useState<Array<{ name: string; path: string }>>([]);
   const [ragEnabled, setRagEnabled] = useState(false);
   const [tokenStats, setTokenStats] = useState<StoreValue["tokenStats"]>(null);
@@ -240,6 +242,14 @@ export function AppProvider({ children }: PropsWithChildren) {
       await selectFile(fallbackPath);
     },
     [refreshMeta, selectFile, selectedFile]
+  );
+
+  const toggleSkill = useCallback(
+    async (name: string, enabled: boolean) => {
+      await setSkillEnabled(name, enabled);
+      await refreshMeta();
+    },
+    [refreshMeta]
   );
 
   const toggleRagMode = useCallback(async (enabled: boolean) => {
@@ -534,6 +544,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       persistFile,
       uploadKnowledge,
       removeKnowledge,
+      toggleSkill,
       refreshSessions,
       toggleRagMode,
       compressCurrentSession,
@@ -561,6 +572,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       sidebarWidth,
       skills,
       tokenStats,
+      toggleSkill,
       toggleRagMode,
       uploadKnowledge,
       compressCurrentSession,

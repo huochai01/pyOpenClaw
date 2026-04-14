@@ -1,3 +1,4 @@
 {
-  "rag_mode": false
+  "rag_mode": false,
+  "disabled_skills": []
 }

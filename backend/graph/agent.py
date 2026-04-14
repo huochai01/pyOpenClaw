@@ -60,6 +60,7 @@ class AgentManager:
         }
         if "system_prompt" in signature.parameters:
             kwargs["system_prompt"] = prompt
+            print(prompt)
         elif "prompt" in signature.parameters:
             kwargs["prompt"] = prompt
         else:

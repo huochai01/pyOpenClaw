@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import Editor from "@monaco-editor/react";
-import { FileText, Save, Trash2, Upload } from "lucide-react";
+import { FileText, Power, Save, Trash2, Upload } from "lucide-react";
 import { useMemo, useRef, useState, type ChangeEvent } from "react";
 
 import { useAppStore } from "@/lib/store";
@@ -19,7 +19,8 @@ export function InspectorPanel() {
     knowledgeFiles,
     isFileDirty,
     uploadKnowledge,
-    removeKnowledge
+    removeKnowledge,
+    toggleSkill
   } = useAppStore();
   const [activeTab, setActiveTab] = useState<FileTab>("skills");
   const [isUploading, setIsUploading] = useState(false);
@@ -93,31 +94,51 @@ export function InspectorPanel() {
               还没有知识文件。支持上传 `.md`、`.txt`、`.json`，上传后会立即重建知识索引。
             </div>
           ) : null}
-          {files.map((file) => (
-            <div
-              key={file}
-              className={`group flex items-center gap-2 rounded-lg px-2 py-2 ${
-                selectedFile === file ? "bg-[#eef2ff] text-[var(--accent-strong)]" : "hover:bg-slate-50"
-              }`}
-            >
-              <button className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => void selectFile(file)}>
-                <FileText size={15} />
-                <span className="truncate">{file}</span>
-              </button>
-              {activeTab === "knowledge" ? (
-                <button
-                  className="rounded-md p-1 text-slate-400 opacity-0 transition hover:bg-white hover:text-rose-500 group-hover:opacity-100"
-                  title="删除知识文件"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    void removeKnowledge(file);
-                  }}
-                >
-                  <Trash2 size={14} />
+          {files.map((file) => {
+            const skill = activeTab === "skills" ? skills.find((item) => item.path === file) : null;
+            return (
+              <div
+                key={file}
+                className={`group flex items-center gap-2 rounded-lg px-2 py-2 ${
+                  selectedFile === file ? "bg-[#eef2ff] text-[var(--accent-strong)]" : "hover:bg-slate-50"
+                }`}
+              >
+                <button className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => void selectFile(file)}>
+                  <FileText size={15} />
+                  <span className="truncate">{file}</span>
                 </button>
-              ) : null}
-            </div>
-          ))}
+                {skill ? (
+                  <button
+                    className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition ${
+                      skill.enabled
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-100"
+                        : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                    }`}
+                    title={skill.enabled ? "停用技能" : "启用技能"}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void toggleSkill(skill.name, !skill.enabled);
+                    }}
+                  >
+                    <Power size={12} />
+                    {skill.enabled ? "已启用" : "未启用"}
+                  </button>
+                ) : null}
+                {activeTab === "knowledge" ? (
+                  <button
+                    className="rounded-md p-1 text-slate-400 opacity-0 transition hover:bg-white hover:text-rose-500 group-hover:opacity-100"
+                    title="删除知识文件"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void removeKnowledge(file);
+                    }}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       </div>
 

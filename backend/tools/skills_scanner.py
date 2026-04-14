@@ -6,21 +6,24 @@ from utils.text_files import write_text_file
 import yaml
 
 
-def scan_skills(base_dir: Path) -> Path:
+def scan_skills(base_dir: Path, disabled_skills: set[str] | None = None) -> Path:
     skills_dir = base_dir / "skills"
     snapshot_path = base_dir / "SKILLS_SNAPSHOT.md"
     entries: list[str] = ["<available_skills>"]
+    disabled = disabled_skills or set()
 
     for skill_file in sorted(skills_dir.glob("*/SKILL.md")):
         raw_text = skill_file.read_text(encoding="utf-8")
         frontmatter = _parse_frontmatter(raw_text)
-        name = frontmatter.get("name") or skill_file.parent.name
+        canonical_name = skill_file.parent.name
+        if canonical_name in disabled:
+            continue
         description = frontmatter.get("description") or "No description"
         location = f"./{skill_file.relative_to(base_dir).as_posix()}"
         entries.extend(
             [
                 "  <skill>",
-                f"    <name>{name}</name>",
+                f"    <name>{canonical_name}</name>",
                 f"    <description>{description}</description>",
                 f"    <location>{location}</location>",
                 "  </skill>",

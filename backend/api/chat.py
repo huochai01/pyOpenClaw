@@ -33,6 +33,7 @@ def build_router(agent_manager: AgentManager) -> APIRouter:
 
         async def event_generator():
             assistant_segments: list[dict[str, Any]] = []
+            user_saved = False
             try:
                 async for event in agent_manager.astream(request.message, history, session_id=session_id):
                     if event["type"] == "done":
@@ -41,6 +42,7 @@ def build_router(agent_manager: AgentManager) -> APIRouter:
                     yield _sse(event["type"], event["data"])
 
                 agent_manager.session_manager.save_message(session_id, "user", request.message)
+                user_saved = True
                 for segment in assistant_segments:
                     if segment.get("content", "").strip() or segment.get("tool_calls"):
                         agent_manager.session_manager.save_message(
@@ -54,6 +56,10 @@ def build_router(agent_manager: AgentManager) -> APIRouter:
                     agent_manager.session_manager.rename_session(session_id, title)
                     yield _sse("title", {"session_id": session_id, "title": title})
             except Exception as exc:  # pragma: no cover
+                if not user_saved:
+                    agent_manager.session_manager.save_message(session_id, "user", request.message)
+                error_text = f"发生错误: {exc}"
+                agent_manager.session_manager.save_message(session_id, "assistant", error_text)
                 yield _sse("error", {"error": str(exc)})
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
